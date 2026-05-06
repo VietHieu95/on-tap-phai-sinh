@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { chapters, totalQuestionCount, type Chapter, type Question } from "@/data/course";
+import { detailedTheoryByChapter } from "@/data/study-guides";
 
 type Mode = "theory" | "study" | "exam" | "wrong";
 
@@ -246,7 +247,7 @@ export default function Home() {
           <div className="mt-5">
             {mode === "theory" ? <TheoryPanel chapter={selectedChapter} /> : null}
             {mode === "study" ? (
-              <StudyPanel key={selectedChapter.id} chapter={selectedChapter} progress={progress} onAnswer={storeAnswer} />
+              <StudyPanel key={selectedChapter.id} chapter={selectedChapter} onAnswer={storeAnswer} />
             ) : null}
             {mode === "exam" ? (
               <ExamPanel key={selectedChapter.id} chapter={selectedChapter} onSubmitScore={saveExamScore} />
@@ -296,24 +297,29 @@ function ModeButton({
 }
 
 function TheoryPanel({ chapter }: { chapter: Chapter }) {
+  const detailedTheory = detailedTheoryByChapter[chapter.id] ?? [];
+  const theorySections = detailedTheory.length ? detailedTheory : chapter.theory;
+  const quickSections = detailedTheory.length ? chapter.theory : [];
+
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
       <section className="rounded-lg border border-[#d9d1c3] bg-white p-5">
         <div className="flex items-center gap-2">
           <BookOpen className="text-[#0f766e]" size={22} />
-          <h3 className="text-xl font-bold">Lý thuyết chương {chapter.id}</h3>
+          <h3 className="text-xl font-bold">Lý thuyết trọng tâm chương {chapter.id}</h3>
         </div>
         <div className="mt-5 space-y-5">
-          {chapter.theory.map((section) => (
+          {theorySections.map((section) => (
             <article key={section.heading} className="border-l-4 border-[#0f766e] pl-4">
               <h4 className="font-bold">{section.heading}</h4>
-              <p className="mt-2 leading-7 text-[#504940]">{section.body}</p>
+              <p className="mt-2 whitespace-pre-line leading-7 text-[#504940]">{section.body}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <aside className="rounded-lg border border-[#d9d1c3] bg-white p-5">
+      <aside className="space-y-4">
+        <section className="rounded-lg border border-[#d9d1c3] bg-white p-5">
         <div className="flex items-center gap-2">
           <ListChecks className="text-[#b7791f]" size={20} />
           <h3 className="font-bold">Thuật ngữ cần thuộc</h3>
@@ -325,6 +331,21 @@ function TheoryPanel({ chapter }: { chapter: Chapter }) {
             </span>
           ))}
         </div>
+        </section>
+
+        {quickSections.length ? (
+          <section className="rounded-lg border border-[#d9d1c3] bg-white p-5">
+            <h3 className="font-bold">Ôn nhanh</h3>
+            <div className="mt-3 space-y-3">
+              {quickSections.map((section) => (
+                <article key={section.heading}>
+                  <h4 className="text-sm font-bold text-[#0f766e]">{section.heading}</h4>
+                  <p className="mt-1 text-sm leading-6 text-[#625b51]">{section.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </aside>
     </div>
   );
@@ -332,16 +353,20 @@ function TheoryPanel({ chapter }: { chapter: Chapter }) {
 
 function StudyPanel({
   chapter,
-  progress,
   onAnswer,
 }: {
   chapter: Chapter;
-  progress: Progress;
   onAnswer: (chapter: Chapter, question: Question, answer: string) => void;
 }) {
   const [index, setIndex] = useState(0);
+  const [sessionAnswers, setSessionAnswers] = useState<Record<string, string>>({});
   const question = chapter.questions[index] ?? chapter.questions[0];
-  const selected = progress.answers[question.id];
+  const selected = sessionAnswers[question.id];
+
+  function selectAnswer(answer: string) {
+    setSessionAnswers((current) => ({ ...current, [question.id]: answer }));
+    onAnswer(chapter, question, answer);
+  }
 
   return (
     <section className="rounded-lg border border-[#d9d1c3] bg-white p-5">
@@ -349,8 +374,8 @@ function StudyPanel({
       <AnswerOptions
         question={question}
         selected={selected}
-        reveal
-        onSelect={(answer) => onAnswer(chapter, question, answer)}
+        reveal={Boolean(selected)}
+        onSelect={selectAnswer}
       />
       {selected ? <Explanation question={question} selected={selected} /> : null}
       <QuestionNav
